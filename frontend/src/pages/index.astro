@@ -1,0 +1,452 @@
+---
+// src/pages/index.astro
+
+// Generating initial mock data
+const mockPerformances = Array.from({ length: 30 }, (_, i) => ({
+  id: i + 1,
+  player: `Player ${i + 1}`,
+  team: i % 2 === 0 ? 'Eagles' : 'Lions',
+  opponent: i % 2 === 0 ? 'Lions' : 'Eagles',
+  matchDate: `2026-07-${String((i % 30) + 1).padStart(2, '0')}`,
+  position: ['FW', 'MF', 'DF', 'GK'][i % 4],
+  minutes: Math.floor(Math.random() * 90) + 1,
+  goals: Math.floor(Math.random() * 3),
+  assists: Math.floor(Math.random() * 3),
+  shots: Math.floor(Math.random() * 5),
+  passAccuracy: Math.floor(Math.random() * 30) + 70, 
+  rating: (Math.random() * 4 + 6).toFixed(1),
+}));
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Performances | Home</title>
+    <style>
+      body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 1200px; margin: auto; }
+      nav { margin-bottom: 2rem; }
+      nav a { margin-right: 1rem; color: #2563eb; text-decoration: none; font-weight: bold; }
+      
+      /* Controls Layout */
+      .controls { 
+        margin-bottom: 1rem; 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between; 
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+      .controls-left { display: flex; gap: 1rem; align-items: center; }
+      .search-box input {
+        padding: 0.5rem;
+        width: 250px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      
+      /* Table Styles */
+      table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+      th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+      th { background-color: #f3f4f6; cursor: pointer; user-select: none; }
+      th:hover { background-color: #e5e7eb; }
+      .sort-icon { font-size: 0.8em; margin-left: 0.5rem; }
+      
+      /* Clickable Rows */
+      tbody tr { cursor: pointer; transition: background-color 0.2s; }
+      tbody tr:hover { background-color: #f0f9ff; }
+
+      /* Buttons */
+      .btn { 
+        padding: 0.5rem 1rem; 
+        cursor: pointer; 
+        border: none; 
+        border-radius: 4px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .btn-primary { background-color: #2563eb; color: white; }
+      .btn-primary:hover { background-color: #1d4ed8; }
+      .btn-primary:disabled { background-color: #9ca3af; cursor: not-allowed; }
+      .btn-secondary { background-color: #e5e7eb; color: #374151; }
+      .btn-danger { background-color: #ef4444; color: white; }
+      .btn-success { background-color: #10b981; color: white; }
+
+      /* Modal (Popup) Styles */
+      dialog {
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        padding: 2rem;
+        width: 450px;
+        max-width: 95vw;
+      }
+      dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(2px); }
+      .modal-header { margin-top: 0; margin-bottom: 1.5rem; }
+      .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+      .form-group.full { grid-column: span 2; }
+      .form-group label { font-size: 0.875rem; font-weight: bold; color: #374151; }
+      .form-group input, .form-group select { padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; }
+      .required-label::after { content: " *"; color: #ef4444; }
+      
+      .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem; }
+      .modal-actions.split { justify-content: space-between; }
+      
+      .warning-box { 
+        background-color: #fffbeb; 
+        border: 1px solid #fbbf24; 
+        color: #92400e; 
+        padding: 0.75rem; 
+        border-radius: 4px; 
+        margin-bottom: 1rem; 
+        display: none; 
+        font-size: 0.875rem;
+      }
+
+      /* Pagination Styles */
+      .pagination { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Performances</a>
+      <a href="/rankings">Rankings</a>
+    </nav>
+
+    <h1>Player Performances</h1>
+
+    <div class="controls">
+      <div class="controls-left">
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="Search by player name..." />
+        </div>
+        <button id="openAddModalBtn" class="btn btn-success">
+          <span>+</span> Add Performance
+        </button>
+      </div>
+      <div>
+        <label for="entryLimit">Show entries (10-25):</label>
+        <input type="number" id="entryLimit" min="10" max="25" value="10" />
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th data-col="player">Player <span class="sort-icon"></span></th>
+          <th data-col="team">Team <span class="sort-icon"></span></th>
+          <th data-col="opponent">Opponent <span class="sort-icon"></span></th>
+          <th data-col="matchDate">Match Date <span class="sort-icon"></span></th>
+          <th data-col="position">Position <span class="sort-icon"></span></th>
+          <th data-col="minutes">Minutes <span class="sort-icon"></span></th>
+          <th data-col="goals">Goals <span class="sort-icon"></span></th>
+          <th data-col="assists">Assists <span class="sort-icon"></span></th>
+          <th data-col="shots">Shots <span class="sort-icon"></span></th>
+          <th data-col="passAccuracy">Pass Acc (%) <span class="sort-icon"></span></th>
+          <th data-col="rating">Rating <span class="sort-icon"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+
+    <div class="pagination">
+      <button id="prevBtn" class="btn btn-primary">Previous</button>
+      <span class="page-info" id="pageInfo">Page 1 of 1</span>
+      <button id="nextBtn" class="btn btn-primary">Next</button>
+    </div>
+
+    <dialog id="addModal">
+      <h2 class="modal-header">Add New Performance</h2>
+      <div id="addWarning" class="warning-box">
+        <strong>Warning:</strong> Statistical data is missing. Row will be added with default values (0).
+      </div>
+      <form id="addForm">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label for="addPlayer" class="required-label">Player Name</label>
+            <input type="text" id="addPlayer" required />
+          </div>
+          <div class="form-group">
+            <label for="addTeam" class="required-label">Team</label>
+            <input type="text" id="addTeam" required />
+          </div>
+          <div class="form-group">
+            <label for="addOpponent" class="required-label">Opponent</label>
+            <input type="text" id="addOpponent" required />
+          </div>
+          <div class="form-group full">
+            <label for="addMatchDate" class="required-label">Match Date</label>
+            <input type="date" id="addMatchDate" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="addPosition">Position</label>
+            <select id="addPosition">
+              <option value="">Select...</option>
+              <option value="FW">FW</option>
+              <option value="MF">MF</option>
+              <option value="DF">DF</option>
+              <option value="GK">GK</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="addMinutes">Minutes</label>
+            <input type="number" id="addMinutes" min="0" max="120" />
+          </div>
+          <div class="form-group">
+            <label for="addGoals">Goals</label>
+            <input type="number" id="addGoals" min="0" />
+          </div>
+          <div class="form-group">
+            <label for="addAssists">Assists</label>
+            <input type="number" id="addAssists" min="0" />
+          </div>
+          <div class="form-group">
+            <label for="addShots">Shots</label>
+            <input type="number" id="addShots" min="0" />
+          </div>
+          <div class="form-group">
+            <label for="addPassAcc">Pass Acc (%)</label>
+            <input type="number" id="addPassAcc" min="0" max="100" />
+          </div>
+          <div class="form-group">
+            <label for="addRating">Rating</label>
+            <input type="number" id="addRating" min="0" max="10" step="0.1" />
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="closeAddModalBtn" class="btn btn-secondary">Cancel</button>
+          <button type="submit" class="btn btn-success">Add Row</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="editModal">
+      <h2 class="modal-header" id="modalTitle">Edit Player</h2>
+      <form id="editForm">
+        <input type="hidden" id="editId" />
+        <div class="form-grid">
+          <div class="form-group full">
+            <label for="editPosition">Position</label>
+            <select id="editPosition" required>
+              <option value="FW">Forward (FW)</option>
+              <option value="MF">Midfielder (MF)</option>
+              <option value="DF">Defender (DF)</option>
+              <option value="GK">Goalkeeper (GK)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editMinutes">Minutes Played</label>
+            <input type="number" id="editMinutes" min="0" max="120" required />
+          </div>
+          <div class="form-group">
+            <label for="editGoals">Goals</label>
+            <input type="number" id="editGoals" min="0" required />
+          </div>
+          <div class="form-group">
+            <label for="editAssists">Assists</label>
+            <input type="number" id="editAssists" min="0" required />
+          </div>
+          <div class="form-group">
+            <label for="editShots">Shots</label>
+            <input type="number" id="editShots" min="0" required />
+          </div>
+          <div class="form-group">
+            <label for="editPassAcc">Pass Acc (%)</label>
+            <input type="number" id="editPassAcc" min="0" max="100" required />
+          </div>
+          <div class="form-group">
+            <label for="editRating">Rating</label>
+            <input type="number" id="editRating" min="0" max="10" step="0.1" required />
+          </div>
+        </div>
+        <div class="modal-actions split">
+          <button type="button" id="deleteModalBtn" class="btn btn-danger">Delete</button>
+          <div style="display: flex; gap: 1rem;">
+            <button type="button" id="closeEditModalBtn" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <script define:vars={{ mockPerformances }}>
+      let data = [...mockPerformances];
+      let limit = 10;
+      let currentPage = 1;
+      let sortCol = 'player';
+      let sortAsc = true;
+      let searchQuery = '';
+
+      // Elements
+      const tbody = document.getElementById('tableBody');
+      const limitInput = document.getElementById('entryLimit');
+      const searchInput = document.getElementById('searchInput');
+      const headers = document.querySelectorAll('th');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const pageInfo = document.getElementById('pageInfo');
+
+      // Add Modal Elements
+      const addModal = document.getElementById('addModal');
+      const openAddModalBtn = document.getElementById('openAddModalBtn');
+      const closeAddModalBtn = document.getElementById('closeAddModalBtn');
+      const addForm = document.getElementById('addForm');
+      const addWarning = document.getElementById('addWarning');
+
+      // Edit Modal Elements
+      const editModal = document.getElementById('editModal');
+      const closeEditModalBtn = document.getElementById('closeEditModalBtn');
+      const editForm = document.getElementById('editForm');
+      const deleteModalBtn = document.getElementById('deleteModalBtn');
+
+      function renderTable() {
+        const filteredData = data.filter(row => 
+          row.player.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        const sortedData = filteredData.sort((a, b) => {
+          let valA = a[sortCol], valB = b[sortCol];
+          if (!isNaN(valA) && !isNaN(valB)) { valA = Number(valA); valB = Number(valB); }
+          if (valA < valB) return sortAsc ? -1 : 1;
+          if (valA > valB) return sortAsc ? 1 : -1;
+          return 0;
+        });
+
+        const totalPages = Math.ceil(sortedData.length / limit) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        const startIndex = (currentPage - 1) * limit;
+        const paginatedData = sortedData.slice(startIndex, startIndex + limit);
+
+        if (paginatedData.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="11" style="text-align: center;">No entries found.</td></tr>`;
+        } else {
+          tbody.innerHTML = paginatedData.map(row => `
+            <tr data-id="${row.id}">
+              <td>${row.player}</td>
+              <td>${row.team}</td>
+              <td>${row.opponent}</td>
+              <td>${row.matchDate}</td>
+              <td>${row.position}</td>
+              <td>${row.minutes}</td>
+              <td>${row.goals}</td>
+              <td>${row.assists}</td>
+              <td>${row.shots}</td>
+              <td>${row.passAccuracy}</td>
+              <td>${row.rating}</td>
+            </tr>
+          `).join('');
+        }
+
+        headers.forEach(th => {
+          const icon = th.querySelector('.sort-icon');
+          icon.textContent = th.dataset.col === sortCol ? (sortAsc ? '▲' : '▼') : '';
+        });
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+        prevBtn.disabled = currentPage === 1;
+        nextBtn.disabled = currentPage === totalPages;
+      }
+
+      // --- Interaction Logic ---
+      searchInput.addEventListener('input', (e) => { searchQuery = e.target.value; currentPage = 1; renderTable(); });
+      limitInput.addEventListener('change', (e) => { limit = Math.min(Math.max(parseInt(e.target.value), 10), 25); currentPage = 1; renderTable(); });
+      headers.forEach(th => th.addEventListener('click', () => { sortAsc = sortCol === th.dataset.col ? !sortAsc : true; sortCol = th.dataset.col; renderTable(); }));
+      prevBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(); } });
+      nextBtn.addEventListener('click', () => { if (currentPage < Math.ceil(data.length / limit)) { currentPage++; renderTable(); } });
+
+      // --- Add Modal Logic ---
+      openAddModalBtn.addEventListener('click', () => {
+        addForm.reset();
+        addWarning.style.display = 'none';
+        addModal.showModal();
+      });
+
+      closeAddModalBtn.addEventListener('click', () => addModal.close());
+
+      addForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        // Check for missing optional info to show warning
+        const optionalFields = ['addPosition', 'addMinutes', 'addGoals', 'addAssists', 'addShots', 'addPassAcc', 'addRating'];
+        const isStatsMissing = optionalFields.some(id => !document.getElementById(id).value);
+
+        if (isStatsMissing && addWarning.style.display === 'none') {
+            addWarning.style.display = 'block';
+            return; // Stops first click to show warning
+        }
+
+        const newRow = {
+          id: data.length > 0 ? Math.max(...data.map(p => p.id)) + 1 : 1,
+          player: document.getElementById('addPlayer').value,
+          team: document.getElementById('addTeam').value,
+          opponent: document.getElementById('addOpponent').value,
+          matchDate: document.getElementById('addMatchDate').value,
+          position: document.getElementById('addPosition').value || 'N/A',
+          minutes: parseInt(document.getElementById('addMinutes').value) || 0,
+          goals: parseInt(document.getElementById('addGoals').value) || 0,
+          assists: parseInt(document.getElementById('addAssists').value) || 0,
+          shots: parseInt(document.getElementById('addShots').value) || 0,
+          passAccuracy: parseInt(document.getElementById('addPassAcc').value) || 0,
+          rating: parseFloat(document.getElementById('addRating').value || 0).toFixed(1)
+        };
+
+        data.push(newRow);
+        renderTable();
+        addModal.close();
+      });
+
+      // --- Edit/Delete Logic ---
+      tbody.addEventListener('click', (e) => {
+        const tr = e.target.closest('tr');
+        if (!tr) return;
+        const player = data.find(p => p.id === parseInt(tr.dataset.id));
+        if (player) {
+          document.getElementById('editId').value = player.id;
+          document.getElementById('editPosition').value = player.position;
+          document.getElementById('editMinutes').value = player.minutes;
+          document.getElementById('editGoals').value = player.goals;
+          document.getElementById('editAssists').value = player.assists;
+          document.getElementById('editShots').value = player.shots;
+          document.getElementById('editPassAcc').value = player.passAccuracy;
+          document.getElementById('editRating').value = player.rating;
+          editModal.showModal();
+        }
+      });
+
+      closeEditModalBtn.addEventListener('click', () => editModal.close());
+
+      deleteModalBtn.addEventListener('click', () => {
+        if (confirm('Delete this entry?')) {
+          data = data.filter(p => p.id !== parseInt(document.getElementById('editId').value));
+          renderTable();
+          editModal.close();
+        }
+      });
+
+      editForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const idx = data.findIndex(p => p.id === parseInt(document.getElementById('editId').value));
+        if (idx !== -1) {
+          data[idx] = { ...data[idx], 
+            position: document.getElementById('editPosition').value,
+            minutes: parseInt(document.getElementById('editMinutes').value),
+            goals: parseInt(document.getElementById('editGoals').value),
+            assists: parseInt(document.getElementById('editAssists').value),
+            shots: parseInt(document.getElementById('editShots').value),
+            passAccuracy: parseInt(document.getElementById('editPassAcc').value),
+            rating: parseFloat(document.getElementById('editRating').value).toFixed(1)
+          };
+          renderTable();
+          editModal.close();
+        }
+      });
+
+      renderTable();
+    </script>
+  </body>
+</html>

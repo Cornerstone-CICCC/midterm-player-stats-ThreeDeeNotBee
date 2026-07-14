@@ -1,0 +1,139 @@
+---
+// src/pages/rankings.astro
+
+// Generating 30 mock players with aggregated stats
+const mockPlayers = Array.from({ length: 30 }, (_, i) => ({
+  id: i + 1,
+  name: `Player ${i + 1}`,
+  team: i % 2 === 0 ? 'Eagles' : 'Lions',
+  matchesPlayed: Math.floor(Math.random() * 5) + 15, // 15 to 20 matches
+  goals: Math.floor(Math.random() * 15),             // 0 to 14 goals
+  assists: Math.floor(Math.random() * 10),           // 0 to 9 assists
+  rating: parseFloat((Math.random() * 2.5 + 7.5).toFixed(1)), // 7.5 to 10.0
+}));
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Rankings | Top 10</title>
+    <style>
+      body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 1000px; margin: auto; }
+      nav { margin-bottom: 2rem; }
+      nav a { margin-right: 1rem; color: #2563eb; text-decoration: none; font-weight: bold; }
+      nav a.active { border-bottom: 2px solid #2563eb; }
+      
+      /* Controls Layout */
+      .controls { 
+        margin-bottom: 1.5rem; 
+        display: flex; 
+        align-items: center; 
+        gap: 1rem;
+        background-color: #f9fafb;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+      }
+      .controls select {
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-weight: 500;
+      }
+
+      /* Table Styles */
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 1rem 0.75rem; text-align: left; border-bottom: 1px solid #ddd; }
+      th { background-color: #f3f4f6; font-weight: bold; color: #374151; }
+      
+      /* Highlight Top 3 Ranks */
+      tbody tr:nth-child(1) .rank { color: #d97706; font-weight: 900; font-size: 1.2em; } /* Gold */
+      tbody tr:nth-child(2) .rank { color: #6b7280; font-weight: 800; font-size: 1.1em; } /* Silver */
+      tbody tr:nth-child(3) .rank { color: #92400e; font-weight: 800; font-size: 1.1em; } /* Bronze */
+      .rank { font-weight: bold; text-align: center; width: 50px; }
+      
+      tbody tr:hover { background-color: #f0f9ff; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/">Performances</a>
+      <a href="/rankings" class="active">Rankings</a>
+    </nav>
+
+    <h1>Top 10 Players</h1>
+
+    <div class="controls">
+      <label for="rankFilter"><strong>Rank by:</strong></label>
+      <select id="rankFilter">
+        <option value="rating" selected>Overall Rating</option>
+        <option value="goals">Total Goals</option>
+        <option value="assists">Total Assists</option>
+      </select>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="rank">Rank</th>
+          <th>Player Name</th>
+          <th>Team</th>
+          <th>Matches Played</th>
+          <th>Total Goals</th>
+          <th>Total Assists</th>
+          <th>Rating</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        </tbody>
+    </table>
+
+    <script define:vars={{ mockPlayers }}>
+      // Initial Data
+      let data = [...mockPlayers];
+      let currentFilter = 'rating';
+
+      // Elements
+      const tbody = document.getElementById('tableBody');
+      const rankFilter = document.getElementById('rankFilter');
+
+      function renderTable() {
+        // 1. Sort the data based on the selected filter (descending order)
+        const sortedData = [...data].sort((a, b) => b[currentFilter] - a[currentFilter]);
+
+        // 2. Slice strictly to the top 10 players
+        const top10 = sortedData.slice(0, 10);
+
+        // 3. Render HTML
+        tbody.innerHTML = top10.map((player, index) => {
+          // Add subtle highlighting to the specific metric being ranked
+          const isGoals = currentFilter === 'goals' ? 'font-weight: bold; color: #2563eb;' : '';
+          const isAssists = currentFilter === 'assists' ? 'font-weight: bold; color: #2563eb;' : '';
+          const isRating = currentFilter === 'rating' ? 'font-weight: bold; color: #2563eb;' : '';
+
+          return `
+            <tr>
+              <td class="rank">#${index + 1}</td>
+              <td style="font-weight: 600;">${player.name}</td>
+              <td>${player.team}</td>
+              <td>${player.matchesPlayed}</td>
+              <td style="${isGoals}">${player.goals}</td>
+              <td style="${isAssists}">${player.assists}</td>
+              <td style="${isRating}">${player.rating.toFixed(1)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // Listen for dropdown changes
+      rankFilter.addEventListener('change', (e) => {
+        currentFilter = e.target.value;
+        renderTable();
+      });
+
+      // Initial Render
+      renderTable();
+    </script>
+  </body>
+</html>
