@@ -121,7 +121,7 @@ const mockPerformances = Array.from({ length: 30 }, (_, i) => ({
     <div class="controls">
       <div class="controls-left">
         <div class="search-box">
-          <input type="text" id="searchInput" placeholder="Search by player name..." />
+          <input type="text" id="searchInput" placeholder="Search player..." />
         </div>
         <button id="openAddModalBtn" class="btn btn-success">
           <span>+</span> Add Performance
@@ -274,8 +274,10 @@ const mockPerformances = Array.from({ length: 30 }, (_, i) => ({
       </form>
     </dialog>
 
-    <script define:vars={{ mockPerformances }}>
-      let data = [...mockPerformances];
+    <script>
+import { date } from "astro:schema";
+
+      let data = [];
       let limit = 10;
       let currentPage = 1;
       let sortCol = 'player';
@@ -291,22 +293,35 @@ const mockPerformances = Array.from({ length: 30 }, (_, i) => ({
       const nextBtn = document.getElementById('nextBtn');
       const pageInfo = document.getElementById('pageInfo');
 
-      // Add Modal Elements
+      // Modal Elements
       const addModal = document.getElementById('addModal');
       const openAddModalBtn = document.getElementById('openAddModalBtn');
       const closeAddModalBtn = document.getElementById('closeAddModalBtn');
       const addForm = document.getElementById('addForm');
       const addWarning = document.getElementById('addWarning');
 
-      // Edit Modal Elements
       const editModal = document.getElementById('editModal');
       const closeEditModalBtn = document.getElementById('closeEditModalBtn');
       const editForm = document.getElementById('editForm');
       const deleteModalBtn = document.getElementById('deleteModalBtn');
 
+      // --- 1. Fetch Data from Database ---
+      async function fetchPerformances() {
+        try {
+          const response = await fetch('http://localhost:3001/api/performances');
+          data = await response.json();
+          console.log("data", data)
+          renderTable();
+        } catch (error) {
+          console.error("Error fetching data:", error);
+          tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: red;">Failed to connect to backend server. Is it running?</td></tr>`;
+        }
+      }
+      
       function renderTable() {
         const filteredData = data.filter(row => 
-          row.player.toLowerCase().includes(searchQuery.toLowerCase())
+          row.player_name.toLowerCase().includes(searchQuery.toLowerCase())
+          
         );
 
         const sortedData = filteredData.sort((a, b) => {
@@ -328,17 +343,17 @@ const mockPerformances = Array.from({ length: 30 }, (_, i) => ({
         } else {
           tbody.innerHTML = paginatedData.map(row => `
             <tr data-id="${row.id}">
-              <td>${row.player}</td>
+              <td>${row.player_name}</td>
               <td>${row.team}</td>
-              <td>${row.opponent}</td>
-              <td>${row.matchDate}</td>
+              <td>${row.opponent_team}</td>
+              <td>${row.match_date}</td>
               <td>${row.position}</td>
-              <td>${row.minutes}</td>
+              <td>${row.minutes_played}</td>
               <td>${row.goals}</td>
               <td>${row.assists}</td>
               <td>${row.shots}</td>
-              <td>${row.passAccuracy}</td>
-              <td>${row.rating}</td>
+              <td>${row.pass_accuracy}</td>
+              <td>${row.tournament_rating}</td>
             </tr>
           `).join('');
         }
@@ -368,85 +383,103 @@ const mockPerformances = Array.from({ length: 30 }, (_, i) => ({
 
       closeAddModalBtn.addEventListener('click', () => addModal.close());
 
-      addForm.addEventListener('submit', (e) => {
+      addForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // Check for missing optional info to show warning
         const optionalFields = ['addPosition', 'addMinutes', 'addGoals', 'addAssists', 'addShots', 'addPassAcc', 'addRating'];
         const isStatsMissing = optionalFields.some(id => !document.getElementById(id).value);
 
         if (isStatsMissing && addWarning.style.display === 'none') {
             addWarning.style.display = 'block';
-            return; // Stops first click to show warning
+            return; 
         }
 
         const newRow = {
-          id: data.length > 0 ? Math.max(...data.map(p => p.id)) + 1 : 1,
-          player: document.getElementById('addPlayer').value,
+          player_name: document.getElementById('addPlayer').value,
           team: document.getElementById('addTeam').value,
-          opponent: document.getElementById('addOpponent').value,
-          matchDate: document.getElementById('addMatchDate').value,
+          opponent_team: document.getElementById('addOpponent').value,
+          match_date: document.getElementById('addMatchDate').value,
           position: document.getElementById('addPosition').value || 'N/A',
-          minutes: parseInt(document.getElementById('addMinutes').value) || 0,
+          minutes_played: parseInt(document.getElementById('addMinutes').value) || 0,
           goals: parseInt(document.getElementById('addGoals').value) || 0,
           assists: parseInt(document.getElementById('addAssists').value) || 0,
           shots: parseInt(document.getElementById('addShots').value) || 0,
-          passAccuracy: parseInt(document.getElementById('addPassAcc').value) || 0,
-          rating: parseFloat(document.getElementById('addRating').value || 0).toFixed(1)
+          pass_accuracy: parseInt(document.getElementById('addPassAcc').value) || 0,
+          tournament_rating: parseFloat(document.getElementById('addRating').value || 0).toFixed(1)
         };
+        // 2. Send POST request to Database
+        await fetch('http://localhost:3001/api/performances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newRow)
+        });
 
-        data.push(newRow);
-        renderTable();
         addModal.close();
+        fetchPerformances(); // Re-fetch updated database
       });
 
       // --- Edit/Delete Logic ---
       tbody.addEventListener('click', (e) => {
         const tr = e.target.closest('tr');
         if (!tr) return;
-        const player = data.find(p => p.id === parseInt(tr.dataset.id));
+          const player = data.find(p => p.id === parseInt(tr.dataset.id));
+        console.log(player)
         if (player) {
           document.getElementById('editId').value = player.id;
           document.getElementById('editPosition').value = player.position;
-          document.getElementById('editMinutes').value = player.minutes;
+          document.getElementById('editMinutes').value = player.minutes_played;
           document.getElementById('editGoals').value = player.goals;
           document.getElementById('editAssists').value = player.assists;
           document.getElementById('editShots').value = player.shots;
-          document.getElementById('editPassAcc').value = player.passAccuracy;
-          document.getElementById('editRating').value = player.rating;
+          document.getElementById('editPassAcc').value = player.pass_accuracy;
+          document.getElementById('editRating').value = player.tournament_rating;
           editModal.showModal();
         }
       });
 
       closeEditModalBtn.addEventListener('click', () => editModal.close());
 
-      deleteModalBtn.addEventListener('click', () => {
+      deleteModalBtn.addEventListener('click', async () => {
         if (confirm('Delete this entry?')) {
-          data = data.filter(p => p.id !== parseInt(document.getElementById('editId').value));
-          renderTable();
+          const idToDelete = document.getElementById('editId').value;
+          
+          // 3. Send DELETE request to Database
+          await fetch(`http://localhost:3001/api/performances/${idToDelete}`, {
+            method: 'DELETE'
+          });
+
           editModal.close();
+          fetchPerformances(); // Re-fetch updated database
         }
       });
 
-      editForm.addEventListener('submit', (e) => {
+      editForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const idx = data.findIndex(p => p.id === parseInt(document.getElementById('editId').value));
-        if (idx !== -1) {
-          data[idx] = { ...data[idx], 
+        const idToEdit = document.getElementById('editId').value;
+        
+        const updatedStats = {
             position: document.getElementById('editPosition').value,
-            minutes: parseInt(document.getElementById('editMinutes').value),
+            minutes_played: parseInt(document.getElementById('editMinutes').value),
             goals: parseInt(document.getElementById('editGoals').value),
             assists: parseInt(document.getElementById('editAssists').value),
             shots: parseInt(document.getElementById('editShots').value),
-            passAccuracy: parseInt(document.getElementById('editPassAcc').value),
-            rating: parseFloat(document.getElementById('editRating').value).toFixed(1)
-          };
-          renderTable();
-          editModal.close();
-        }
+            pass_accuracy: parseInt(document.getElementById('editPassAcc').value),
+            tournament_rating: parseFloat(document.getElementById('editRating').value).toFixed(1)
+        };
+
+        // 4. Send PUT request to Database
+        await fetch(`http://localhost:3001/api/performances/${idToEdit}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedStats)
+        });
+
+        editModal.close();
+        fetchPerformances(); // Re-fetch updated database
       });
 
-      renderTable();
+      // Initialize App by fetching from backend
+      fetchPerformances();
     </script>
   </body>
 </html>
